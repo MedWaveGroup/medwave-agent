@@ -59,12 +59,26 @@
                 <div class="card-value">{{ data.summary.total_leads }}</div>
             </div>
             <div class="card">
-                <div class="card-label">Deposits Received</div>
-                <div class="card-value green">{{ data.summary.deposits.total_deposits }}</div>
+                <div class="card-label">Cost / Purchase</div>
+                <div class="card-value accent">
+                    {% if data.summary.cost_per_purchase %}
+                        ${{ "%.2f"|format(data.summary.cost_per_purchase) }}
+                    {% else %}
+                        --
+                    {% endif %}
+                </div>
             </div>
             <div class="card">
-                <div class="card-label">Deposit Revenue</div>
-                <div class="card-value money">${{ "%.2f"|format(data.summary.deposits.total_amount) }}</div>
+                <div class="card-label">Deposits Taken</div>
+                <div class="card-value green">{{ data.summary.purchases.deposits_taken }}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Cash Collected</div>
+                <div class="card-value green">{{ data.summary.purchases.cash_collected }}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Total Purchase Revenue</div>
+                <div class="card-value money">${{ "%.2f"|format(data.summary.purchases.total_amount) }}</div>
             </div>
             {% else %}
             <div class="card">

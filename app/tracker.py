@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from app.integrations.facebook_ads import fetch_adset_insights
 from app.integrations.gohighlevel import fetch_appointments, match_appointments_to_adsets
-from app.integrations.medx import fetch_deposits, summarise_deposits
+from app.integrations.medx import fetch_purchases, summarise_purchases
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ async def refresh_data() -> dict:
     # --- 1. Fetch from all APIs ---
     adsets = []
     appointments = []
-    deposits = []
+    purchases = []
     errors = []
 
     try:
@@ -41,7 +41,7 @@ async def refresh_data() -> dict:
         errors.append(f"Go High Level: {e}")
 
     try:
-        deposits = await fetch_deposits()
+        purchases = await fetch_purchases()
     except Exception as e:
         logger.error(f"MedX fetch failed: {e}")
         errors.append(f"MedX: {e}")
@@ -83,13 +83,15 @@ async def refresh_data() -> dict:
     with_spend = [p for p in sorted_by_appts if p["spend"] > 0]
     bottom_3 = list(reversed(with_spend))[:3] if with_spend else []
 
-    # --- 5. Deposit summary ---
-    deposit_summary = summarise_deposits(deposits)
+    # --- 5. Purchase summary (deposits taken + cash collected) ---
+    purchase_summary = summarise_purchases(purchases)
 
     # --- 6. Totals ---
     total_spend = sum(a["spend"] for a in adsets)
     total_appointments = sum(appt_counts.values())
     overall_cost_per_appt = round(total_spend / total_appointments, 2) if total_appointments > 0 else None
+    total_purchases = purchase_summary["total_purchases"]
+    cost_per_purchase = round(total_spend / total_purchases, 2) if total_purchases > 0 else None
 
     _cache = {
         "last_updated": datetime.now(timezone.utc).isoformat(),
@@ -99,7 +101,8 @@ async def refresh_data() -> dict:
             "total_appointments": total_appointments,
             "total_leads": sum(a["leads"] for a in adsets),
             "cost_per_appointment": overall_cost_per_appt,
-            "deposits": deposit_summary,
+            "cost_per_purchase": cost_per_purchase,
+            "purchases": purchase_summary,
         },
         "top_5": top_5,
         "bottom_3_switch_off": bottom_3,
@@ -110,6 +113,6 @@ async def refresh_data() -> dict:
     logger.info(
         f"Refresh complete — {len(adsets)} ad sets, "
         f"{total_appointments} appointments, "
-        f"{deposit_summary['total_deposits']} deposits"
+        f"{purchase_summary['total_purchases']} purchases"
     )
     return _cache
