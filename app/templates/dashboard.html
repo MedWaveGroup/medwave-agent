@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedWave Ad Tracker</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1><span>MedWave</span> Ad Tracker</h1>
+        <div class="header-right">
+            <span class="countdown" id="countdown"></span>
+            <span class="last-updated" id="lastUpdated">
+                {% if data and data.last_updated %}
+                    Updated: {{ data.last_updated[:19] }} UTC
+                {% else %}
+                    No data yet
+                {% endif %}
+            </span>
+            <button class="refresh-btn" id="refreshBtn" onclick="manualRefresh()">Refresh Now</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Errors -->
+        {% if data and data.errors %}
+        <div class="errors-banner" id="errorsBanner">
+            <strong>API Errors:</strong>
+            {% for err in data.errors %}
+                {{ err }}<br>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Summary Cards -->
+        <div class="summary-grid" id="summaryGrid">
+            {% if data and data.summary %}
+            <div class="card">
+                <div class="card-label">Total Ad Spend (7d)</div>
+                <div class="card-value money">${{ "%.2f"|format(data.summary.total_spend) }}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Booked Appointments</div>
+                <div class="card-value green">{{ data.summary.total_appointments }}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Cost / Appointment</div>
+                <div class="card-value accent">
+                    {% if data.summary.cost_per_appointment %}
+                        ${{ "%.2f"|format(data.summary.cost_per_appointment) }}
+                    {% else %}
+                        --
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-label">Total Leads</div>
+                <div class="card-value">{{ data.summary.total_leads }}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Deposits Received</div>
+                <div class="card-value green">{{ data.summary.deposits.total_deposits }}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Deposit Revenue</div>
+                <div class="card-value money">${{ "%.2f"|format(data.summary.deposits.total_amount) }}</div>
+            </div>
+            {% else %}
+            <div class="card">
+                <div class="card-label">Awaiting Data</div>
+                <div class="card-value">--</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Top 5 / Bottom 3 -->
+        <div class="two-col">
+            <!-- Top 5 -->
+            <div>
+                <div class="section-title">
+                    Top 5 Ad Sets <span class="badge badge-green">Best Performers</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Ad Set</th>
+                                <th>Spend</th>
+                                <th>Appts</th>
+                                <th>Cost/Appt</th>
+                                <th>Leads</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top5Body">
+                            {% if data and data.top_5 %}
+                                {% for ad in data.top_5 %}
+                                <tr>
+                                    <td class="rank-cell">{{ loop.index }}</td>
+                                    <td>
+                                        <div class="adset-name">{{ ad.adset_name }}</div>
+                                        <div class="campaign-name">{{ ad.campaign_name }}</div>
+                                    </td>
+                                    <td class="money">${{ "%.2f"|format(ad.spend) }}</td>
+                                    <td class="good">{{ ad.booked_appointments }}</td>
+                                    <td>
+                                        {% if ad.cost_per_appointment %}
+                                            ${{ "%.2f"|format(ad.cost_per_appointment) }}
+                                        {% else %}
+                                            --
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ ad.leads }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="6" class="empty-state"><p>No data available</p></td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Bottom 3 -->
+            <div>
+                <div class="section-title">
+                    Switch Off Candidates <span class="badge badge-red">Lowest 3</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Ad Set</th>
+                                <th>Spend</th>
+                                <th>Appts</th>
+                                <th>Cost/Appt</th>
+                                <th>Leads</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bottom3Body">
+                            {% if data and data.bottom_3_switch_off %}
+                                {% for ad in data.bottom_3_switch_off %}
+                                <tr>
+                                    <td class="rank-cell bad">{{ loop.index }}</td>
+                                    <td>
+                                        <div class="adset-name">{{ ad.adset_name }}</div>
+                                        <div class="campaign-name">{{ ad.campaign_name }}</div>
+                                    </td>
+                                    <td class="money">${{ "%.2f"|format(ad.spend) }}</td>
+                                    <td class="bad">{{ ad.booked_appointments }}</td>
+                                    <td>
+                                        {% if ad.cost_per_appointment %}
+                                            ${{ "%.2f"|format(ad.cost_per_appointment) }}
+                                        {% else %}
+                                            --
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ ad.leads }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="6" class="empty-state"><p>No data available</p></td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Full Ad Set Table -->
+        <div class="section-title" style="margin-top: 8px;">All Ad Sets (7-Day Performance)</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Ad Set</th>
+                        <th>Campaign</th>
+                        <th>Spend</th>
+                        <th>Impressions</th>
+                        <th>Clicks</th>
+                        <th>CTR</th>
+                        <th>CPC</th>
+                        <th>Leads</th>
+                        <th>Appts</th>
+                        <th>Cost/Appt</th>
+                    </tr>
+                </thead>
+                <tbody id="allAdsetsBody">
+                    {% if data and data.all_adsets %}
+                        {% for ad in data.all_adsets %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td class="adset-name">{{ ad.adset_name }}</td>
+                            <td class="campaign-name">{{ ad.campaign_name }}</td>
+                            <td class="money">${{ "%.2f"|format(ad.spend) }}</td>
+                            <td>{{ "{:,}".format(ad.impressions) }}</td>
+                            <td>{{ "{:,}".format(ad.clicks) }}</td>
+                            <td>{{ "%.2f"|format(ad.ctr) }}%</td>
+                            <td>${{ "%.2f"|format(ad.cpc) }}</td>
+                            <td>{{ ad.leads }}</td>
+                            <td class="{% if ad.booked_appointments > 0 %}good{% else %}bad{% endif %}">
+                                {{ ad.booked_appointments }}
+                            </td>
+                            <td>
+                                {% if ad.cost_per_appointment %}
+                                    ${{ "%.2f"|format(ad.cost_per_appointment) }}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="11" class="empty-state"><p>No ad set data available. Check your API credentials in .env</p></td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh the page data every 60 seconds (lightweight JSON poll)
+        // Full data refresh happens server-side every hour via scheduler
+        const POLL_INTERVAL = 60; // seconds
+        let countdown = POLL_INTERVAL;
+
+        function updateCountdown() {
+            const el = document.getElementById('countdown');
+            el.textContent = `Next poll: ${countdown}s`;
+            countdown--;
+            if (countdown < 0) {
+                pollData();
+                countdown = POLL_INTERVAL;
+            }
+        }
+
+        async function pollData() {
+            try {
+                const resp = await fetch('/api/data');
+                const data = await resp.json();
+                if (data.last_updated) {
+                    document.getElementById('lastUpdated').textContent =
+                        'Updated: ' + data.last_updated.substring(0, 19) + ' UTC';
+                }
+                // Reload the page to re-render with fresh data from Jinja
+                location.reload();
+            } catch (e) {
+                console.error('Poll failed:', e);
+            }
+        }
+
+        async function manualRefresh() {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Refreshing...';
+            try {
+                await fetch('/api/refresh', { method: 'POST' });
+                location.reload();
+            } catch (e) {
+                console.error('Refresh failed:', e);
+                btn.disabled = false;
+                btn.textContent = 'Refresh Now';
+            }
+        }
+
+        setInterval(updateCountdown, 1000);
+        updateCountdown();
+    </script>
+</body>
+</html>
