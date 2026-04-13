@@ -17,10 +17,12 @@ async def fetch_purchases() -> list[dict]:
     start = now - timedelta(days=7)
     base = MEDX_API_BASE_URL.rstrip("/")
 
-    headers = {
-        "Authorization": f"Bearer {MEDX_API_KEY}",
-        "Content-Type": "application/json",
-    }
+    # Try multiple auth styles since we don't know which MedX expects
+    auth_headers_options = [
+        {"Authorization": f"Bearer {MEDX_API_KEY}", "Content-Type": "application/json"},
+        {"x-api-key": MEDX_API_KEY, "Content-Type": "application/json"},
+        {"Authorization": MEDX_API_KEY, "Content-Type": "application/json"},
+    ]
     date_params = {
         "start_date": start.strftime("%Y-%m-%d"),
         "end_date": now.strftime("%Y-%m-%d"),
@@ -29,38 +31,41 @@ async def fetch_purchases() -> list[dict]:
     all_purchases = []
 
     async with httpx.AsyncClient(timeout=30) as client:
-        # Try the /purchases endpoint first, fall back to /transactions
-        for endpoint in ("/purchases", "/transactions", "/deposits"):
-            try:
-                resp = await client.get(
-                    f"{base}{endpoint}", headers=headers, params=date_params
-                )
-                if resp.status_code == 404:
+        for headers in auth_headers_options:
+            if all_purchases:
+                break
+            for endpoint in ("/purchases", "/transactions", "/deposits"):
+                try:
+                    resp = await client.get(
+                        f"{base}{endpoint}", headers=headers, params=date_params
+                    )
+                    if resp.status_code in (401, 403):
+                        break  # wrong auth style, try next headers
+                    if resp.status_code == 404:
+                        continue  # wrong endpoint, try next
+                    resp.raise_for_status()
+                    data = resp.json()
+
+                    # Handle various response shapes
+                    items = (
+                        data.get("purchases")
+                        or data.get("transactions")
+                        or data.get("deposits")
+                        or data.get("data")
+                        or data.get("results")
+                        or []
+                    )
+
+                    for item in items:
+                        record = _parse_purchase(item)
+                        if record:
+                            all_purchases.append(record)
+
+                    if all_purchases:
+                        break
+
+                except httpx.HTTPStatusError:
                     continue
-                resp.raise_for_status()
-                data = resp.json()
-
-                # Handle various response shapes
-                items = (
-                    data.get("purchases")
-                    or data.get("transactions")
-                    or data.get("deposits")
-                    or data.get("data")
-                    or data.get("results")
-                    or []
-                )
-
-                for item in items:
-                    record = _parse_purchase(item)
-                    if record:
-                        all_purchases.append(record)
-
-                # If we got data, don't try other endpoints
-                if all_purchases:
-                    break
-
-            except httpx.HTTPStatusError:
-                continue
 
     return all_purchases
 
