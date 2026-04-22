@@ -654,12 +654,14 @@ export default function App() {
             </div>
             {!assessment && !assessing && (
               <div style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--muted)', lineHeight: 1.9 }}>
-                Framework covers 6 stages:<br />
-                <b style={{ color: 'var(--accent)' }}>1.</b> Introduction & Fit · <b style={{ color: 'var(--accent)' }}>2.</b> PPP Discovery (+ PIE)<br />
-                <b style={{ color: 'var(--accent)' }}>3.</b> Diagnosis · <b style={{ color: 'var(--accent)' }}>4.</b> Permission to Pitch<br />
-                <b style={{ color: 'var(--accent)' }}>5.</b> Value Pitch (Patient / Productivity / Profitability)<br />
-                <b style={{ color: 'var(--accent)' }}>6.</b> Close (Deposit Ask)<br /><br />
-                Paste a transcript and click <b style={{ color: 'var(--accent)' }}>Assess Call</b> to get stage-by-stage feedback, strengths, gaps, Hormozi-vs-Minor style alignment, and a coaching direction.
+                You'll get back:<br />
+                <b style={{ color: 'var(--accent)' }}>→</b> Overall score (1–10)<br />
+                <b style={{ color: 'var(--accent)' }}>→</b> Top 3 immediate improvements (ranked)<br />
+                <b style={{ color: 'var(--accent)' }}>→</b> Stage-by-stage of where they fell short<br />
+                <b style={{ color: 'var(--accent)' }}>→</b> A ready-to-use script for next time<br />
+                <b style={{ color: 'var(--accent)' }}>→</b> What went well + Hormozi/Minor style read<br />
+                <b style={{ color: 'var(--accent)' }}>→</b> A plan for the next call with this prospect<br /><br />
+                Scored against the MedWave Six-Stage Framework: Intro & Fit → PPP Discovery → Diagnosis → Permission → Value Pitch → Close.
               </div>
             )}
             {assessing && <div style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--muted)' }}>▌ analysing transcript against the six-stage framework…</div>}
