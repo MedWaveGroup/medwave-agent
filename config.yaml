@@ -1,0 +1,52 @@
+# Property Scout configuration
+# Edit this file to change defaults, contact details and which sources run.
+
+# Honest contact email advertised in the User-Agent of every request.
+contact_email: "info@medwavegroup.com"
+
+# Default hard filters (overridable per run via UI/CLI flags).
+default_max_rent: 12000          # ZAR / month
+default_min_size_sqm: 25         # single contiguous unit
+max_listing_age_days: 60         # hard cut-off
+
+# Age handling.
+exclude_inferred_age_over_limit: true        # drop weak-evidence stale listings
+include_unknown_age_in_separate_section: true # route no-date listings to a section
+
+# Availability.
+recheck_previously_exported_listings: true    # re-verify last run's exports
+
+# Politeness / caching.
+request_delay_seconds: 2         # min delay between hits to the same domain
+cache_ttl_hours: 24              # reuse raw responses within this window
+
+# Storage locations (relative to project root).
+database_path: "property_scout.db"
+cache_dir: ".cache"
+export_dir: "exports"
+log_dir: "logs"
+
+# Sources. Order here is the priority order the pipeline runs them in.
+sources:
+  property24:
+    enabled: true
+  private_property:
+    enabled: true
+  gumtree:
+    enabled: true
+  pamgolding:
+    enabled: true
+  century21:
+    enabled: true
+  seeff:
+    enabled: true
+  remax:
+    enabled: true
+  rawson:
+    enabled: true
+
+# Convenience list shown in the web UI dropdown.
+saved_areas:
+  - "East London, Eastern Cape"
+  - "Port Elizabeth, Eastern Cape"
+  - "Jeffreys Bay, Eastern Cape"

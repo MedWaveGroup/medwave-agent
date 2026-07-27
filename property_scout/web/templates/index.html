@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Property Scout</title>
+  <style>
+    :root { --navy:#1f4e78; --grey:#555; --line:#e2e6ea; --bg:#f5f7fa; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+           margin:0; background:var(--bg); color:#1a1a1a; }
+    header { background:var(--navy); color:#fff; padding:18px 24px; }
+    header h1 { margin:0; font-size:20px; }
+    header p { margin:4px 0 0; opacity:.85; font-size:13px; }
+    main { max-width:1200px; margin:0 auto; padding:20px; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:8px;
+            padding:18px; margin-bottom:18px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+            gap:14px; }
+    label { display:block; font-size:12px; font-weight:600; color:var(--grey);
+            margin-bottom:4px; }
+    input, select { width:100%; padding:8px; border:1px solid #ccc;
+                    border-radius:6px; font-size:14px; }
+    .checks { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; }
+    .checks label { display:flex; align-items:center; gap:6px; font-weight:400;
+                    color:#333; }
+    .checks input { width:auto; }
+    button { background:var(--navy); color:#fff; border:0; padding:10px 20px;
+             border-radius:6px; font-size:15px; cursor:pointer; margin-top:14px; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    #progress { font-family:monospace; font-size:13px; white-space:pre-wrap;
+                background:#0e1b2a; color:#8ee6a0; padding:12px; border-radius:6px;
+                min-height:40px; display:none; }
+    .summary { display:flex; flex-wrap:wrap; gap:18px; margin:10px 0; }
+    .stat { background:#eef3f9; border-radius:6px; padding:10px 16px; }
+    .stat b { display:block; font-size:22px; color:var(--navy); }
+    .stat span { font-size:12px; color:var(--grey); }
+    .downloads a { display:inline-block; background:#eef3f9; color:var(--navy);
+                   text-decoration:none; padding:8px 14px; border-radius:6px;
+                   margin-right:10px; font-weight:600; }
+    table { width:100%; border-collapse:collapse; font-size:12.5px; }
+    th, td { padding:6px 8px; border-bottom:1px solid var(--line);
+             text-align:left; vertical-align:top; }
+    th { cursor:pointer; background:#f0f3f7; position:sticky; top:0; user-select:none; }
+    th:hover { background:#e5ebf2; }
+    tr:hover td { background:#fafcff; }
+    .tablewrap { overflow:auto; max-height:60vh; }
+    .badge { font-size:10px; padding:2px 6px; border-radius:10px; }
+    .b-Qualifying { background:#d7f5dd; color:#1a7a33; }
+    .b-Age { background:#fff2cc; color:#8a6d00; }
+    .b-Needs { background:#fde2e1; color:#a12a24; }
+    .warn { color:#a12a24; font-weight:600; }
+    .muted { color:var(--grey); font-size:12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Property Scout</h1>
+    <p>Internal rental-sourcing tool &mdash; find small units to let and build a call sheet.</p>
+  </header>
+  <main>
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label>Target area</label>
+          <input list="areas" id="area" placeholder="East London, Eastern Cape">
+          <datalist id="areas">
+            {% for a in saved_areas %}<option value="{{ a }}">{% endfor %}
+          </datalist>
+        </div>
+        <div>
+          <label>Max rent (R / month)</label>
+          <input type="number" id="max_rent" value="{{ default_max_rent }}">
+        </div>
+        <div>
+          <label>Min size (m²)</label>
+          <input type="number" id="min_size" value="{{ default_min_size }}">
+        </div>
+        <div>
+          <label>Radius (km, optional)</label>
+          <input type="number" id="radius" placeholder="e.g. 20">
+        </div>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="include_residential"> Include residential units</label>
+        {% for s in sources %}
+        <label><input type="checkbox" class="src" value="{{ s }}" checked> {{ s }}</label>
+        {% endfor %}
+      </div>
+      <button id="run">Run Search</button>
+    </div>
+
+    <div class="card" id="progress-card" style="display:none">
+      <label>Progress</label>
+      <div id="progress"></div>
+    </div>
+
+    <div class="card" id="results-card" style="display:none">
+      <div class="summary" id="summary"></div>
+      <div id="blocked" class="warn"></div>
+      <div class="downloads" id="downloads" style="margin:10px 0"></div>
+      <p class="muted">Click a column header to sort. * = excl-VAT rent exceeds limit once VAT added; ~ = size parsed from text.</p>
+      <div class="tablewrap">
+        <table id="results">
+          <thead><tr id="head"></tr></thead>
+          <tbody id="body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<script>
+const COLS = [
+  ["section","Section"],["source","Source"],["agency","Agency"],["agent","Agent"],
+  ["phone","Phone"],["email","Email"],["suburb","Suburb"],["type","Type"],
+  ["rent","Rent (R)"],["vat","VAT"],["size","Size m²"],["dom","DoM"],
+  ["age_conf","Age conf."],["live","Live"],["title","Title"]
+];
+let rows = [], sortKey = "dom", sortAsc = true, jobId = null;
+
+function el(id){ return document.getElementById(id); }
+
+el("run").onclick = async () => {
+  const sources = [...document.querySelectorAll(".src:checked")].map(c=>c.value);
+  const body = {
+    area: el("area").value,
+    max_rent: el("max_rent").value,
+    min_size: el("min_size").value,
+    radius: el("radius").value,
+    include_residential: el("include_residential").checked,
+    sources
+  };
+  if(!body.area){ alert("Enter a target area"); return; }
+  el("run").disabled = true;
+  el("progress-card").style.display = "block";
+  el("results-card").style.display = "none";
+  el("progress").style.display = "block";
+  el("progress").textContent = "Starting…\n";
+  const r = await fetch("/api/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const j = await r.json();
+  if(j.error){ el("progress").textContent += "Error: "+j.error; el("run").disabled=false; return; }
+  jobId = j.job_id;
+  poll();
+};
+
+let lastLen = 0;
+async function poll(){
+  const r = await fetch("/api/status/"+jobId);
+  const s = await r.json();
+  for(let i=lastLen; i<s.events.length; i++){
+    const e = s.events[i];
+    let line = "";
+    if(e.event==="run_start") line = "Querying: "+(e.sources||[]).join(", ");
+    else if(e.event==="source_start") line = "  … "+e.source;
+    else if(e.event==="source_done") line = "  ✓ "+e.source+": "+e.found+" found"+(e.blocked?" [BLOCKED]":"");
+    else if(e.event==="recheck_start") line = "  … re-checking previous exports";
+    else if(e.event==="run_done") line = "Done.";
+    if(line) el("progress").textContent += line+"\n";
+  }
+  lastLen = s.events.length;
+  if(s.done){
+    el("run").disabled = false;
+    if(s.error){ el("progress").textContent += "ERROR: "+s.error; return; }
+    render(s);
+  } else {
+    setTimeout(poll, 1000);
+  }
+}
+
+function render(s){
+  rows = s.rows || [];
+  el("results-card").style.display = "block";
+  const su = s.summary;
+  el("summary").innerHTML = `
+    <div class="stat"><b>${su.qualifying}</b><span>Qualifying</span></div>
+    <div class="stat"><b>${su.age_unconfirmed}</b><span>Age unconfirmed</span></div>
+    <div class="stat"><b>${su.needs_verification}</b><span>Needs verification</span></div>
+    <div class="stat"><b>${su.dropped_since_last}</b><span>Dropped since last run</span></div>`;
+  el("blocked").textContent = (su.sources_blocked||[]).length ?
+      "Sources blocked/skipped: "+su.sources_blocked.join(", ") : "";
+  el("downloads").innerHTML =
+    `<a href="/api/download/${jobId}/docx">⬇ Call Sheet (DOCX)</a>
+     <a href="/api/download/${jobId}/xlsx">⬇ Spreadsheet (XLSX)</a>
+     <a href="/api/download/${jobId}/json">⬇ Run report (JSON)</a>`;
+  el("head").innerHTML = COLS.map(c=>`<th onclick="setSort('${c[0]}')">${c[1]}</th>`).join("");
+  draw();
+}
+
+function setSort(k){ if(sortKey===k) sortAsc=!sortAsc; else {sortKey=k; sortAsc=true;} draw(); }
+
+function draw(){
+  const sorted = [...rows].sort((a,b)=>{
+    let x=a[sortKey], y=b[sortKey];
+    if(x==null) x = sortAsc?Infinity:-Infinity;
+    if(y==null) y = sortAsc?Infinity:-Infinity;
+    if(typeof x==="string") return sortAsc? x.localeCompare(y): y.localeCompare(x);
+    return sortAsc? x-y : y-x;
+  });
+  el("body").innerHTML = sorted.map(r=>{
+    const badge = r.section==="Qualifying"?"b-Qualifying":(r.section==="Age Unconfirmed"?"b-Age":"b-Needs");
+    const rent = r.rent==null?"POA":("R"+r.rent.toLocaleString()+(r.flags.includes("vat_pushes_over_limit")?" *":""));
+    const size = r.size==null?"?":((r.size_conf==="stated"?"":"~")+r.size);
+    return `<tr>
+      <td><span class="badge ${badge}">${r.section}</span></td>
+      <td>${r.source}</td><td>${esc(r.agency)}</td><td>${esc(r.agent)}</td>
+      <td>${esc(r.phone)}</td><td>${esc(r.email)}</td><td>${esc(r.suburb)}</td>
+      <td>${r.type}</td><td>${rent}<br><span class="muted">${r.vat}</span></td>
+      <td>${r.vat}</td><td>${size}</td><td>${r.dom==null?"?":r.dom}</td>
+      <td>${r.age_conf}</td><td>${r.live}</td>
+      <td><a href="${r.url}" target="_blank">${esc((r.title||"").slice(0,60))}</a></td>
+    </tr>`;
+  }).join("");
+}
+function esc(s){ return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+</script>
+</body>
+</html>
